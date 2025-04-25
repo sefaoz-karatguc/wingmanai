@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   SafeAreaView,
-  StatusBar,
   ListRenderItemInfo,
   StyleSheet,
 } from "react-native";
@@ -27,8 +26,10 @@ import { MaterialIcons, Ionicons, Feather } from "@expo/vector-icons";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AppStackParams } from "../../Utils/types";
 import { DEVICE_HEIGHT, DEVICE_WIDTH } from "../../Utils/constants";
+import * as ImagePicker from "expo-image-picker";
+import { analyzeImageWithPrompt } from "../../Redux/actions";
+import { useAppDispatch, useAppSelector } from "../../Redux/store";
 
-// Define types
 interface Message {
   id: number;
   text: string;
@@ -49,7 +50,11 @@ const HomeScreen = ({ navigation, route }: Props) => {
   const [inputText, setInputText] = useState<string>("");
   const flatListRef = useRef<FlatList<Message>>(null);
   const inputAnimation = useSharedValue(0);
-
+  const loading = useAppSelector((state) => state.global.loading);
+  const aiResponse = useAppSelector((state) => state.global.aiResponse);
+  const success = useAppSelector((state) => state.global.success);
+  const message = useAppSelector((state) => state.global.message);
+  const dispatch = useAppDispatch();
   // Animated button styles for send button
   const sendButtonStyle = useAnimatedStyle(() => {
     const scale = interpolate(
@@ -98,52 +103,69 @@ const HomeScreen = ({ navigation, route }: Props) => {
       }
     }, 1000);
   };
-
-  const handleUploadImage = (): void => {
-    // Image upload functionality would go here
-    const imageUploadMessage: Message = {
-      id: messages.length + 1,
-      text: "Image uploaded successfully! Let me analyze this profile...",
-      sender: "ai",
-      isLoading: true,
-    };
-
-    setMessages([...messages, imageUploadMessage]);
-
-    // Simulate AI response after "analyzing" the image
-    setTimeout(() => {
-      const aiResponse: Message = {
-        id: messages.length + 2,
-        text: "Based on this profile, I recommend highlighting your shared interest in hiking. Would you like me to suggest an opener?",
-        sender: "ai",
+  useEffect(() => {
+    if (aiResponse) {
+      const response: Message = {
+        id: messages.length + 1,
+        text: message,
+        sender: "user",
+        isLoading: false,
       };
+      setMessages([...messages, response]);
+    }
+  }, [aiResponse, success, message]);
 
-      setMessages((prev) =>
-        prev
-          .map((msg) =>
-            msg.id === messages.length + 1 ? { ...msg, isLoading: false } : msg
-          )
-          .concat([aiResponse])
-      );
+  const handleUploadImage = async (): Promise<void> => {
+    try {
+      // Request permission to access the media library
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-      if (flatListRef.current) {
-        flatListRef.current.scrollToEnd({ animated: true });
+      if (status !== "granted") {
+        alert("Sorry, we need camera roll permissions to make this work!");
+        return;
       }
-    }, 2000);
+
+      // Launch the image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 1,
+        base64: true, // Request base64 data
+      });
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const selectedAsset = result.assets[0];
+
+        // Show loading message
+        const imageUploadMessage: Message = {
+          id: messages.length + 1,
+          text: "Image uploaded successfully! Let me analyze this profile...",
+          sender: "ai",
+          isLoading: true,
+        };
+
+        setMessages([...messages, imageUploadMessage]);
+        console.log("selectedAsset.base64: ", selectedAsset.base64);
+
+        //  dispatch(analyzeImageWithPrompt({imageBase64:  selectedAsset.base64!, prompt: ""}))
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      alert("There was an error selecting the image. Please try again.");
+    }
   };
 
   const renderMessage = ({ item }: ListRenderItemInfo<Message>) => (
     <View
-      style={{
-        alignSelf: item.sender === "user" ? "flex-end" : "flex-start",
-        backgroundColor: item.sender === "user" ? "#8a56ff" : "#f0f0f0",
-        borderRadius: 18,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        maxWidth: "80%",
-        marginVertical: 4,
-        marginHorizontal: 12,
-      }}
+      style={[
+        styles.renderMessage,
+        {
+          alignSelf: item.sender === "user" ? "flex-end" : "flex-start",
+          backgroundColor: item.sender === "user" ? "#8a56ff" : "#f0f0f0",
+        },
+      ]}
     >
       <Text
         style={{
@@ -233,17 +255,7 @@ const HomeScreen = ({ navigation, route }: Props) => {
           </View>
         </TouchableOpacity>
 
-        <View
-          style={{
-            flex: 1,
-            flexDirection: "row",
-            backgroundColor: "#f5f5f5",
-            borderRadius: 24,
-            paddingHorizontal: 16,
-            paddingVertical: 8,
-            alignItems: "center",
-          }}
-        >
+        <View style={styles.container}>
           <TextInput
             style={{ flex: 1, fontSize: 16, color: "#333" }}
             placeholder="Message Wingman..."
@@ -266,16 +278,7 @@ const HomeScreen = ({ navigation, route }: Props) => {
       </View>
 
       {/* Skia gradient background effect */}
-      <Canvas
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: 120,
-          zIndex: -1,
-        }}
-      >
+      <Canvas style={styles.canvas2}>
         <RoundedRect x={0} y={0} width={400} height={120} r={0}>
           <LinearGradient
             start={vec(0, 0)}
@@ -347,5 +350,30 @@ const styles = StyleSheet.create({
     padding: 16,
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  renderMessage: {
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    maxWidth: "80%",
+    marginVertical: 4,
+    marginHorizontal: 12,
+  },
+  container: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "#f5f5f5",
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  canvas2: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 120,
+    zIndex: -1,
   },
 });

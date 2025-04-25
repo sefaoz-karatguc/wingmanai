@@ -5,6 +5,7 @@ export type InitialState = {
   success: boolean;
   error: boolean;
   message: string;
+  aiResponse?: string;
 };
 
 export type AppStackParams = {

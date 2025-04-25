@@ -7,6 +7,7 @@ import {
 import * as RNLocalize from "react-native-localize";
 import { supabase } from "../Utils/supabase";
 import { decode } from "base64-arraybuffer";
+import axios from "axios";
 
 export const login = createAsyncThunk("login", async () => {
   try {
@@ -158,6 +159,57 @@ export const inactivateProfile = createAsyncThunk(
         success: false,
         message: "Something went wrong, cannot proceed, please try again!",
         data: undefined,
+      };
+    }
+  }
+);
+export const analyzeImageWithPrompt = createAsyncThunk(
+  "gpt",
+  async (body: { imageBase64: string; prompt: string }) => {
+    try {
+      const response = await axios.post(
+        "https://api.openai.com/v1/chat/completions",
+        {
+          model: "gpt-4-vision-preview",
+          messages: [
+            {
+              role: "system",
+              content: `You're the most known, the best relationship coach in the whole world. You're master when it comes to seducing the opposite sex. 
+            Users will share with you the dating profile of the person they really liked. Your job is after analyzing the given profile, coming up the best conversation starter. 
+            You have to answer in the same language of user message.`,
+            },
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:image/jpeg;base64,${body.imageBase64}`,
+                  },
+                },
+              ],
+            },
+          ],
+          max_tokens: 1000,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      return {
+        data: response.data,
+        success: true,
+        message: "Here is your response",
+      };
+    } catch (error: any) {
+      return {
+        data: undefined,
+        success: false,
+        message: "Something went wrong while generating a response for you!",
       };
     }
   }
