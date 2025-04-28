@@ -8,6 +8,7 @@ import {
   SafeAreaView,
   ListRenderItemInfo,
   StyleSheet,
+  ActivityIndicator,
 } from "react-native";
 import Animated, {
   useSharedValue,
@@ -107,9 +108,8 @@ const HomeScreen = ({ navigation, route }: Props) => {
     if (aiResponse) {
       const response: Message = {
         id: messages.length + 1,
-        text: message,
-        sender: "user",
-        isLoading: false,
+        text: aiResponse,
+        sender: "ai",
       };
       setMessages([...messages, response]);
     }
@@ -128,28 +128,36 @@ const HomeScreen = ({ navigation, route }: Props) => {
 
       // Launch the image picker
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images",
         allowsEditing: true,
-        aspect: [4, 3],
+        aspect: [9, 16],
         quality: 1,
         base64: true, // Request base64 data
       });
 
       if (!result.canceled && result.assets && result.assets[0]) {
         const selectedAsset = result.assets[0];
-
+        const userMessage: Message = {
+          id: messages.length + 1,
+          text: "image sent",
+          sender: "user",
+        };
         // Show loading message
         const imageUploadMessage: Message = {
-          id: messages.length + 1,
+          id: messages.length + 2,
           text: "Image uploaded successfully! Let me analyze this profile...",
           sender: "ai",
-          isLoading: true,
         };
 
-        setMessages([...messages, imageUploadMessage]);
-        console.log("selectedAsset.base64: ", selectedAsset.base64);
+        setMessages([...messages, userMessage, imageUploadMessage]);
 
-        //  dispatch(analyzeImageWithPrompt({imageBase64:  selectedAsset.base64!, prompt: ""}))
+        dispatch(
+          analyzeImageWithPrompt({
+            imageBase64: selectedAsset.base64!,
+            prompt:
+              "I need a pickup line to start a conversation with this person. It can be kinky / dirty. I dont mind it",
+          })
+        );
       }
     } catch (error) {
       console.error("Error picking image:", error);
@@ -167,24 +175,17 @@ const HomeScreen = ({ navigation, route }: Props) => {
         },
       ]}
     >
-      <Text
-        style={{
-          color: item.sender === "user" ? "white" : "#333",
-          fontSize: 16,
-        }}
-      >
-        {item.text}
-      </Text>
-      {item.isLoading && (
+      {!item.isLoading ? (
         <Text
           style={{
-            color: item.sender === "user" ? "white" : "#666",
-            fontSize: 12,
-            marginTop: 4,
+            color: item.sender === "user" ? "white" : "#333",
+            fontSize: 16,
           }}
         >
-          Analyzing...
+          {item.text}
         </Text>
+      ) : (
+        <ActivityIndicator color={"#ff4444"} size={30} />
       )}
     </View>
   );
@@ -203,9 +204,9 @@ const HomeScreen = ({ navigation, route }: Props) => {
             start={vec(0, 0)}
             end={vec(400, 220)}
             colors={[
-              "rgba(138, 86, 255, 0.3)",
-              "rgba(138, 86, 255, 0.15)",
-              "rgba(138, 86, 255, 0.05)",
+              "rgba(50,50,50,0.30)",
+              "rgba(50,50,50,0.15)",
+              "rgba(50,50,50,0.30)",
             ]}
           />
         </RoundedRect>
@@ -231,7 +232,13 @@ const HomeScreen = ({ navigation, route }: Props) => {
       {/* Chat Messages */}
       <FlatList
         ref={flatListRef}
-        data={messages}
+        data={
+          loading
+            ? messages.concat([
+                { id: 10000, sender: "ai", text: "", isLoading: true },
+              ])
+            : messages
+        }
         renderItem={renderMessage}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={{ paddingTop: 10, paddingBottom: 80 }}
@@ -276,21 +283,6 @@ const HomeScreen = ({ navigation, route }: Props) => {
           </TouchableOpacity>
         </View>
       </View>
-
-      {/* Skia gradient background effect */}
-      <Canvas style={styles.canvas2}>
-        <RoundedRect x={0} y={0} width={400} height={120} r={0}>
-          <LinearGradient
-            start={vec(0, 0)}
-            end={vec(400, 120)}
-            colors={[
-              "rgba(138, 86, 255, 0.1)",
-              "rgba(138, 86, 255, 0.05)",
-              "rgba(255, 255, 255, 0)",
-            ]}
-          />
-        </RoundedRect>
-      </Canvas>
     </SafeAreaView>
   );
 };

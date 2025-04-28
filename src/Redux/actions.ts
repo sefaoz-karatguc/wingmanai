@@ -170,18 +170,18 @@ export const analyzeImageWithPrompt = createAsyncThunk(
       const response = await axios.post(
         "https://api.openai.com/v1/chat/completions",
         {
-          model: "gpt-4-vision-preview",
+          model: "gpt-4.1",
           messages: [
             {
               role: "system",
               content: `You're the most known, the best relationship coach in the whole world. You're master when it comes to seducing the opposite sex. 
             Users will share with you the dating profile of the person they really liked. Your job is after analyzing the given profile, coming up the best conversation starter. 
-            You have to answer in the same language of user message.`,
+            You have to answer in the same language of user message. Write it as plain text, no HTML.`,
             },
             {
               role: "user",
               content: [
-                { type: "text", text: prompt },
+                { type: "text", text: body.prompt },
                 {
                   type: "image_url",
                   image_url: {
@@ -201,11 +201,13 @@ export const analyzeImageWithPrompt = createAsyncThunk(
       );
 
       return {
-        data: response.data,
+        data: response.data.choices[0].message.content,
         success: true,
         message: "Here is your response",
       };
     } catch (error: any) {
+      console.log("error: ", error);
+
       return {
         data: undefined,
         success: false,
